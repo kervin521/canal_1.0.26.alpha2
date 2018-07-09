@@ -58,6 +58,7 @@ public final class LogContext {
 
     public void reset() {
         formatDescription = FormatDescriptionLogEvent.FORMAT_DESCRIPTION_EVENT_5_x;
+
         mapOfTable.clear();
     }
 }

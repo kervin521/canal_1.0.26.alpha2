@@ -73,10 +73,6 @@
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-compress</artifactId>
 		</dependency>
-		<dependency>
-		    <groupId>com.lmax</groupId>
-		    <artifactId>disruptor</artifactId>
-		</dependency>
 		<!-- test dependency -->
 		<dependency>
 			<groupId>junit</groupId>

@@ -109,8 +109,6 @@ public final class LogDecoder {
                         /* Decoding binary-log to event */
                         event = decode(buffer, header, context);
                         if (event != null) {
-                            // set logFileName
-                            event.getHeader().setLogFileName(context.getLogPosition().getFileName());
                             event.setSemival(buffer.semival);
                         }
                     } catch (IOException e) {

@@ -87,6 +87,7 @@ public class MetaHistoryDO {
         this.useSchema = useSchema;
     }
 
+
     public String getExtra() {
         return extra;
     }

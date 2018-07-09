@@ -115,11 +115,6 @@ public final class LogHeader {
      */
     protected long      crc;        // ha_checksum
 
-    /**
-     * binlog fileName
-     */
-    protected String    logFileName;
-
     /* for Start_event_v3 */
     public LogHeader(final int type){
         this.type = type;
@@ -273,14 +268,6 @@ public final class LogHeader {
 
     public int getChecksumAlg() {
         return checksumAlg;
-    }
-
-    public String getLogFileName() {
-        return logFileName;
-    }
-
-    public void setLogFileName(String logFileName) {
-        this.logFileName = logFileName;
     }
 
     private void processCheckSum(LogBuffer buffer) {

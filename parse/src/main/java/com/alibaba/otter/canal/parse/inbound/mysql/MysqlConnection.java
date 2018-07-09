@@ -8,6 +8,8 @@ import java.nio.charset.Charset;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import com.alibaba.otter.canal.parse.driver.mysql.packets.GTIDSet;
+import com.alibaba.otter.canal.parse.driver.mysql.packets.client.BinlogDumpGTIDCommandPacket;
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,10 +17,8 @@ import org.slf4j.LoggerFactory;
 import com.alibaba.otter.canal.parse.driver.mysql.MysqlConnector;
 import com.alibaba.otter.canal.parse.driver.mysql.MysqlQueryExecutor;
 import com.alibaba.otter.canal.parse.driver.mysql.MysqlUpdateExecutor;
-import com.alibaba.otter.canal.parse.driver.mysql.packets.GTIDSet;
 import com.alibaba.otter.canal.parse.driver.mysql.packets.HeaderPacket;
 import com.alibaba.otter.canal.parse.driver.mysql.packets.client.BinlogDumpCommandPacket;
-import com.alibaba.otter.canal.parse.driver.mysql.packets.client.BinlogDumpGTIDCommandPacket;
 import com.alibaba.otter.canal.parse.driver.mysql.packets.client.RegisterSlaveCommandPacket;
 import com.alibaba.otter.canal.parse.driver.mysql.packets.client.SemiAckCommandPacket;
 import com.alibaba.otter.canal.parse.driver.mysql.packets.server.ErrorPacket;
@@ -26,11 +26,9 @@ import com.alibaba.otter.canal.parse.driver.mysql.packets.server.ResultSetPacket
 import com.alibaba.otter.canal.parse.driver.mysql.utils.PacketManager;
 import com.alibaba.otter.canal.parse.exception.CanalParseException;
 import com.alibaba.otter.canal.parse.inbound.ErosaConnection;
-import com.alibaba.otter.canal.parse.inbound.MultiStageCoprocessor;
 import com.alibaba.otter.canal.parse.inbound.SinkFunction;
 import com.alibaba.otter.canal.parse.inbound.mysql.dbsync.DirectLogFetcher;
 import com.alibaba.otter.canal.parse.support.AuthenticationInfo;
-import com.taobao.tddl.dbsync.binlog.LogBuffer;
 import com.taobao.tddl.dbsync.binlog.LogContext;
 import com.taobao.tddl.dbsync.binlog.LogDecoder;
 import com.taobao.tddl.dbsync.binlog.LogEvent;
@@ -158,7 +156,7 @@ public class MysqlConnection implements ErosaConnection {
             }
 
             if (event.getSemival() == 1) {
-                sendSemiAck(context.getLogPosition().getFileName(), context.getLogPosition().getPosition());
+                sendSemiAck(context.getLogPosition().getFileName(), binlogPosition);
             }
         }
     }
@@ -169,72 +167,25 @@ public class MysqlConnection implements ErosaConnection {
         sendBinlogDumpGTID(gtidSet);
 
         DirectLogFetcher fetcher = new DirectLogFetcher(connector.getReceiveBufferSize());
-        try {
-            fetcher.start(connector.getChannel());
-            LogDecoder decoder = new LogDecoder(LogEvent.UNKNOWN_EVENT, LogEvent.ENUM_END_EVENT);
-            LogContext context = new LogContext();
-            while (fetcher.fetch()) {
-                LogEvent event = null;
-                event = decoder.decode(fetcher, context);
+        fetcher.start(connector.getChannel());
+        LogDecoder decoder = new LogDecoder(LogEvent.UNKNOWN_EVENT, LogEvent.ENUM_END_EVENT);
+        LogContext context = new LogContext();
+        while (fetcher.fetch()) {
+            LogEvent event = null;
+            event = decoder.decode(fetcher, context);
 
-                if (event == null) {
-                    throw new CanalParseException("parse failed");
-                }
-
-                if (!func.sink(event)) {
-                    break;
-                }
+            if (event == null) {
+                throw new CanalParseException("parse failed");
             }
-        } finally {
-            fetcher.close();
+
+            if (!func.sink(event)) {
+                break;
+            }
         }
     }
 
     public void dump(long timestamp, SinkFunction func) throws IOException {
         throw new NullPointerException("Not implement yet");
-    }
-
-    @Override
-    public void dump(String binlogfilename, Long binlogPosition, MultiStageCoprocessor coprocessor) throws IOException {
-        updateSettings();
-        sendRegisterSlave();
-        sendBinlogDump(binlogfilename, binlogPosition);
-        ((MysqlMultiStageCoprocessor) coprocessor).setConnection(this);
-        DirectLogFetcher fetcher = new DirectLogFetcher(connector.getReceiveBufferSize());
-        try {
-            fetcher.start(connector.getChannel());
-            while (fetcher.fetch()) {
-                LogBuffer buffer = fetcher.duplicate();
-                fetcher.consume(fetcher.limit());
-                coprocessor.publish(buffer);
-            }
-        } finally {
-            fetcher.close();
-        }
-    }
-
-    @Override
-    public void dump(long timestamp, MultiStageCoprocessor coprocessor) throws IOException {
-        throw new NullPointerException("Not implement yet");
-    }
-
-    @Override
-    public void dump(GTIDSet gtidSet, MultiStageCoprocessor coprocessor) throws IOException {
-        updateSettings();
-        sendBinlogDumpGTID(gtidSet);
-
-        ((MysqlMultiStageCoprocessor) coprocessor).setConnection(this);
-        DirectLogFetcher fetcher = new DirectLogFetcher(connector.getReceiveBufferSize());
-        try {
-            fetcher.start(connector.getChannel());
-            while (fetcher.fetch()) {
-                LogBuffer buffer = fetcher.duplicate();
-                fetcher.consume(fetcher.limit());
-                coprocessor.publish(buffer);
-            }
-        } finally {
-            fetcher.close();
-        }
     }
 
     private void sendRegisterSlave() throws IOException {
@@ -282,7 +233,7 @@ public class MysqlConnection implements ErosaConnection {
         connector.setDumping(true);
     }
 
-    public void sendSemiAck(String binlogfilename, Long binlogPosition) throws IOException {
+    private void sendSemiAck(String binlogfilename, Long binlogPosition) throws IOException {
         SemiAckCommandPacket semiAckCmd = new SemiAckCommandPacket();
         semiAckCmd.binlogFileName = binlogfilename;
         semiAckCmd.binlogPosition = binlogPosition;
@@ -587,5 +538,4 @@ public class MysqlConnection implements ErosaConnection {
     public void setAuthInfo(AuthenticationInfo authInfo) {
         this.authInfo = authInfo;
     }
-
 }
